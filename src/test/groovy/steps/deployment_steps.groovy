@@ -3,6 +3,9 @@ package steps
 
 import cucumber.api.groovy.EN
 import org.slf4j.LoggerFactory
+import org.yaml.snakeyaml.Yaml
+
+import static steps.Executor.runCommand
 
 this.metaClass.mixin(EN)
 
@@ -16,14 +19,31 @@ def createServiceAccount = "kubectl create serviceaccount --namespace kube-syste
 def alreadyExistsSuppressedError = "AlreadyExists"
 def createClusterRoleBinding = "kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller"
 def patchTillerDeploy = '''kubectl patch deploy --namespace kube-system tiller-deploy -p {"spec":{"template":{"spec":{"serviceAccount":"tiller"}}}}'''
+String recreateDbTemplate = "kubectl exec <mySqlProxyPod> -- bash -c \"mysql -h\\\"<dbHost>\\\" -P<dbPort> -u<dbUser> -p<dbPassword> -e \\\"drop database IF EXISTS <dbName>;create database <dbName> CHARACTER SET utf8 COLLATE utf8_unicode_ci;\\\"\""
+
+private static String replaceIfApplicable(String template) {
+
+  if (template.contains("<rds-endpoint>")) {
+    return template.replace("<rds-endpoint>", Shared.properties["aws.rds.endpoint"].toString())
+  }
+  if (template.contains("<hostname>")) {
+    return template.replace("<hostname>", Shared.properties["web.server.hostname"].toString())
+  }
+  return template
+}
+
+private static void outputMatches(String template, commandOut) {
+  def pattern = ~template
+  assert commandOut =~ pattern
+}
 
 When(~/^I execute command (.*)$/) { String command ->
-  def out = Executor.runCommand(command)
+  def out = runCommand(command)
   commandOut = out
 }
 
 When(~/^I run command (.*) in directory (.*)$/) { String command, String directory ->
-  def out = Executor.runCommand(command, directory)
+  def out = runCommand(command, directory)
   commandOut = out
 }
 
@@ -35,11 +55,6 @@ Then(~/^output matches:$/) { String template ->
   outputMatches(template, commandOut)
 }
 
-private static void outputMatches(String template, commandOut) {
-  def pattern = ~"${template}"
-  assert commandOut =~ pattern
-}
-
 Then(~/^output contains:$/) { String str ->
   assert commandOut.contains(str)
 }
@@ -49,28 +64,28 @@ Then(~/^output contains: (.*)$/) { String str ->
 }
 
 Given(~/^Cluster provisioned$/) { ->
-  def out = Executor.runCommand("kubectl get namespaces")
+  def out = runCommand("kubectl get namespaces")
   assert out.contains("kube-system")
   logger.info("Cluster provisioned")
 }
 
 And(~/^Helm installed$/) { ->
-  def out = Executor.runCommand("helm version", null, "Error: could not find tiller")
+  def out = runCommand("helm version", null, "Error: could not find tiller")
   assert out =~ ~/SemVer:"v(\d+)\.(\d+)\.(\d+)"/
   logger.info("Helm installed")
 }
 
 And(~/^tiller deployed to the cluster$/) { ->
-  Executor.runCommand(helmInit, chartsFolder)
-  Executor.runCommand(createServiceAccount, chartsFolder, alreadyExistsSuppressedError)
-  Executor.runCommand(createClusterRoleBinding, chartsFolder, alreadyExistsSuppressedError)
-  Executor.runCommand(patchTillerDeploy, chartsFolder)
+  runCommand(helmInit, chartsFolder)
+  runCommand(createServiceAccount, chartsFolder, alreadyExistsSuppressedError)
+  runCommand(createClusterRoleBinding, chartsFolder, alreadyExistsSuppressedError)
+  runCommand(patchTillerDeploy, chartsFolder)
   logger.info("Tiller deployed")
 }
 
 And(~/^flow-on-kubernetes repo cloned$/) { ->
-  Executor.runCommand("rm -rf flow-on-kubernetes")
-  Executor.runCommand("git clone git@github.com:electric-cloud/flow-on-kubernetes.git")
+  runCommand("rm -rf flow-on-kubernetes")
+  runCommand("git clone git@github.com:electric-cloud/flow-on-kubernetes.git")
 }
 
 When(~/I replace (.*) value to (.*) value in (.*)$/) { String regex, String replacement, String filePath ->
@@ -83,14 +98,25 @@ When(~/I replace (.*) value to (.*) value in (.*)$/) { String regex, String repl
   w.close()
 }
 
-static String replaceIfApplicable(String template) {
+And(~/^mysql-proxy pod deployed to the cluster$/) { ->
+  def createMySqlPod = '''kubectl run mysql-proxy --image mysql:5.7.23 --env="MYSQL_ROOT_PASSWORD=mypassword"'''
+  runCommand(createMySqlPod, null, alreadyExistsSuppressedError)
+}
 
-  if (template.contains("<rds-endpoint>")) {
-    return template.replace("<rds-endpoint>", Shared.properties["aws.rds.endpoint"].toString())
-  }
-  if(template.contains("<hostname>")) {
-    return template.replace("<hostname>", Shared.properties["web.server.hostname"].toString())
-  }
+And(~/^I wait for (\d+) seconds$/) { int seconds ->
+  sleep(seconds * 1000)
+}
 
-  return template
+Given(~/^I recreate the database from (.*)$/) { String valuesFile ->
+  def podName = Executor.getPodName("default", "mysql-proxy")
+  Yaml yaml = new Yaml()
+  String yamlContent = new File(valuesFile).text
+  Map<String, String> dbConfig = yaml.load(yamlContent).database
+  String cmd = recreateDbTemplate.replace("<dbHost>", dbConfig.externalEndpoint)
+          .replace("<dbUser>", dbConfig.dbUser)
+          .replace("<dbPassword>", dbConfig.dbPassword)
+          .replace("<dbPort>", dbConfig.dbPort)
+          .replace("<dbName>", dbConfig.dbName)
+          .replace("<mySqlProxyPod>", podName)
+  runCommand(cmd)
 }

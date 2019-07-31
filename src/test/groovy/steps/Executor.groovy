@@ -25,10 +25,14 @@ class Executor {
       executionDir = executionDir ? executionDir : ""
       logger.error("Error during execution command $executionDir\$ $command")
       logger.error("Exit value: ${exitCode}")
-      logger.error( "Message: ${serr}")
+      logger.error("Error message: ${serr}")
       assert false: "Exit value: ${exitCode} Message: ${serr}"
     }
 
     return sout.toString()
+  }
+
+  static String getPodName(String namespace, String regex) {
+    ['/bin/bash', '-c', "kubectl get pods -n $namespace -o name | grep $regex"].execute().text.trim() - "pod/"
   }
 }
