@@ -8,13 +8,11 @@
     <artifactId>flow-on-kubernetes-tests</artifactId>
     <version>1.0</version>
     <properties>
-        <geb.version>2.3</geb.version>
         <selenium.htmlunit.version>2.52.0</selenium.htmlunit.version>
         <selenium.version>3.141.59</selenium.version>
         <cucumber.version>4.2.6</cucumber.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <geb.env>chrome</geb.env>
         <skipCompilation>false</skipCompilation>
     </properties>
 
@@ -23,12 +21,6 @@
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-all</artifactId>
             <version>2.4.15</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.gebish</groupId>
-            <artifactId>geb-core</artifactId>
-            <version>${geb.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -44,40 +36,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-support</artifactId>
-            <version>${selenium.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-firefox-driver</artifactId>
-            <version>${selenium.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-chrome-driver</artifactId>
-            <version>${selenium.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-remote-driver</artifactId>
-            <version>${selenium.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.sourceforge.htmlunit</groupId>
-            <artifactId>htmlunit</artifactId>
-            <version>2.23</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.yaml</groupId>
-            <artifactId>snakeyaml</artifactId>
-            <version>1.19</version>
-        </dependency>
-        <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>1.7.26</version>
@@ -86,7 +44,17 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>1.7.26</version>
-            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java8</artifactId>
+            <version>${cucumber.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>info.cukes</groupId>
+            <artifactId>cucumber-jvm</artifactId>
+            <version>1.2.5</version>
+            <type>pom</type>
         </dependency>
     </dependencies>
 
@@ -95,7 +63,6 @@
             <id>deployment-tests</id>
             <properties>
                 <test-classes>**/RunDeploymentTests.java</test-classes>
-                <geb.env>chrome</geb.env>
             </properties>
             <activation>
                 <activeByDefault>true</activeByDefault>
@@ -104,6 +71,7 @@
     </profiles>
 
     <build>
+        <testSourceDirectory>src/test/groovy</testSourceDirectory>
         <plugins>
             <plugin>
                 <groupId>org.codehaus.gmavenplus</groupId>
@@ -128,13 +96,6 @@
                     <includes>
                         <include>${test-classes}</include>
                     </includes>
-                    <argLine>-XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap</argLine>
-                    <environmentVariables>
-                    </environmentVariables>
-                    <systemPropertyVariables>
-                        <geb.cucumber.step.packages>pages</geb.cucumber.step.packages>
-                        <geb.env>chrome</geb.env>
-                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <plugin>

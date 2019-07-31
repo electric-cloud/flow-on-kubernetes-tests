@@ -1,52 +1,34 @@
-package groovy.steps
+package steps
 
 import org.slf4j.LoggerFactory
 
 class Executor {
   static final def logger = LoggerFactory.getLogger("Executor")
 
-  static String runCommand(command) {
-    assert command != ""
-    def out = new StringBuilder()
-    def err = new StringBuilder()
-    Process process
-    try {
-      process = command.execute()
-      process.consumeProcessOutputStream(out)
-      process.consumeProcessErrorStream(err)
-      process.waitFor()
-    } catch (IOException exception) {
-      assert false: exception.toString()
-    }
+  static String runCommand(command, executionDir = null, suppressedError = null) {
 
-    if (process?.exitValue()) {
-      logger.error("Exit value: ${process.exitValue()} Error: ${err}")
-    }
-
-    logger.info(out.toString())
-
-    return out.toString()
-  }
-
-  static String runCommandDir(command, executionDir) {
-    assert command != ""
-    assert executionDir != ""
+    logger.info("Execution '$command'")
     def sout = new StringBuilder(), serr = new StringBuilder()
-    def exitCode
-    Process process
-    try {
-      process = command.execute(null, new File(executionDir))
-      process.consumeProcessOutput(sout, serr)
-      process.waitFor()
-      exitCode = process.exitValue()
-    } catch (IOException exception) {
-      assert false: exception.toString()
-    }
+
+    Process process = executionDir ? command.execute(null, new File(executionDir))
+            : command.execute()
+    process.consumeProcessOutput(sout, serr)
+    process.waitFor()
+    def exitCode = process.exitValue()
 
     logger.info(sout.toString())
+
     if (exitCode) {
-      logger.error("Exit value: ${exitCode} Error: ${serr}")
+      if (suppressedError && serr.toString().contains(suppressedError as String)) {
+        return sout.toString()
+      }
+      executionDir = executionDir ? executionDir : ""
+      logger.error("Error during execution command $executionDir\$ $command")
+      logger.error("Exit value: ${exitCode}")
+      logger.error( "Message: ${serr}")
+      assert false: "Exit value: ${exitCode} Message: ${serr}"
     }
+
     return sout.toString()
   }
 }
